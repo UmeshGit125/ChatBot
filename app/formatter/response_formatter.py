@@ -1,0 +1,166 @@
+"""Smart response formatter - formats raw query results into user-friendly responses."""
+
+import re
+from typing import Optional
+
+from tabulate import tabulate
+
+from app.core.models import PipelineResult
+from app.llm.base import BaseLLMProvider
+from app.llm.factory import get_provider
+
+
+MAX_TABLE_ROWS = 50
+
+
+def _snake_to_title(name: str) -> str:
+    """Convert snake_case or raw column names to Title Case."""
+    # Handle common abbreviations
+    name = name.replace("_id", " ID").replace("_lpa", " (LPA)")
+    # Split on underscores and capitalize
+    parts = name.replace("_", " ").split()
+    return " ".join(word.capitalize() for word in parts)
+
+
+def _is_single_value_result(results: list[dict]) -> bool:
+    """Check if result is a single aggregate value."""
+    if len(results) != 1:
+        return False
+    row = results[0]
+    # Single row with 1-2 columns that look like aggregates
+    if len(row) <= 2:
+        return True
+    return False
+
+
+def _format_table(results: list[dict], max_rows: int = MAX_TABLE_ROWS) -> str:
+    """Format results as a markdown table."""
+    if not results:
+        return ""
+
+    # Get headers
+    headers = [_snake_to_title(col) for col in results[0].keys()]
+    raw_headers = list(results[0].keys())
+
+    # Truncate if needed
+    truncated = False
+    total_count = len(results)
+    if total_count > max_rows:
+        display_results = results[:max_rows]
+        truncated = True
+    else:
+        display_results = results
+
+    # Build rows
+    rows = []
+    for row in display_results:
+        formatted_row = []
+        for key in raw_headers:
+            val = row[key]
+            # Format numbers nicely
+            if isinstance(val, float):
+                if val == int(val):
+                    formatted_row.append(str(int(val)))
+                else:
+                    formatted_row.append(f"{val:.2f}")
+            elif val is None:
+                formatted_row.append("-")
+            else:
+                formatted_row.append(str(val))
+        rows.append(formatted_row)
+
+    table = tabulate(rows, headers=headers, tablefmt="pipe")
+
+    if truncated:
+        table += f"\n\n*Showing first {max_rows} of {total_count} results.*"
+
+    return table
+
+
+def format_results_basic(results: list[dict], question: str) -> str:
+    """
+    Format results without LLM assistance (fallback).
+
+    Uses heuristics to determine the best format:
+    - Single value: plain text sentence
+    - Multi-row: markdown table
+    - Empty: friendly message
+    """
+    if not results:
+        return "No results found for your query. Try broadening your search or rephrasing your question."
+
+    if _is_single_value_result(results):
+        row = results[0]
+        values = list(row.values())
+        keys = list(row.keys())
+
+        if len(values) == 1:
+            key_name = _snake_to_title(keys[0])
+            return f"**{key_name}:** {values[0]}"
+        else:
+            parts = []
+            for k, v in row.items():
+                parts.append(f"**{_snake_to_title(k)}:** {v}")
+            return " | ".join(parts)
+
+    # Multi-row result
+    count = len(results)
+    summary = f"Found **{count}** result{'s' if count > 1 else ''}:\n\n"
+    table = _format_table(results)
+    return summary + table
+
+
+async def format_response(
+    pipeline_result: PipelineResult,
+    question: str,
+    provider: Optional[BaseLLMProvider] = None,
+) -> str:
+    """
+    Format the pipeline result into a user-friendly response.
+
+    For single-value results or errors, uses the LLM for natural language.
+    For multi-row results, uses table formatting with a brief LLM summary.
+
+    Args:
+        pipeline_result: The result from the pipeline
+        question: Original user question
+        provider: LLM provider (uses default if None)
+
+    Returns:
+        Formatted response string
+    """
+    # If already has an answer (error case or clarification), return it
+    if pipeline_result.answer and not pipeline_result.raw_results:
+        return pipeline_result.answer
+
+    results = pipeline_result.raw_results or []
+    sql = pipeline_result.sql or ""
+
+    # No results
+    if not results:
+        return "No results found for your query. Try broadening your search or rephrasing your question."
+
+    # Try to get LLM-generated natural language summary
+    llm = provider or get_provider()
+
+    try:
+        if _is_single_value_result(results):
+            # For single values, let LLM create a natural sentence
+            response = await llm.generate_response(question, sql, results)
+            return response
+        else:
+            # For multi-row, get a one-line intro then show table
+            summary = await llm.generate_response(question, sql, results)
+            table = _format_table(results)
+            # Only use the summary if it's a brief intro (1-2 lines, no data listing)
+            summary_lines = summary.strip().split("\n")
+            # If summary is short (1-2 lines) and doesn't contain table-like formatting, use it
+            if len(summary_lines) <= 2 and "|" not in summary:
+                return f"{summary.strip()}\n\n{table}"
+            else:
+                # LLM gave too much detail - just use a generic intro + table
+                count = len(results)
+                return f"Found {count} result{'s' if count > 1 else ''}:\n\n{table}"
+    except Exception:
+        # Fallback to basic formatting if LLM fails
+        return format_results_basic(results, question)

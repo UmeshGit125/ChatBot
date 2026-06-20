@@ -1,0 +1,299 @@
+# Curated schema annotations for the college data platform
+# Organized by domain for selective context loading
+
+domains:
+  attendance:
+    description: "Student attendance tracking across centers and batches"
+    tables:
+      - Attendance
+      - Student
+      - Class
+      - Center
+      - Batch
+    notes:
+      - "Use the Attendance table for all attendance queries, NOT any scan/swipe table"
+      - "status values: 'present', 'absent', 'late'"
+      - "attendance_date is TEXT in format YYYY-MM-DD"
+      - "To calculate attendance percentage: COUNT(present) / COUNT(total) * 100"
+      - "Week definition is configurable (calendar Mon-Sun or rolling 7 days)"
+
+  academics:
+    description: "Exams, marks, grades, and subjects"
+    tables:
+      - Exam
+      - StudentExamMarks
+      - Subject
+      - Student
+      - Batch
+    notes:
+      - "StudentExamMarks links students to their exam scores"
+      - "total_marks in Exam table gives the maximum marks for that exam"
+      - "grade is a computed field (A+, A, B+, B, C+, C, D, F)"
+      - "To find top students, ORDER BY marks_obtained DESC"
+
+  coding:
+    description: "Coding platform - problems, submissions, and contests"
+    tables:
+      - Problem
+      - Submission
+      - Contest
+      - ContestParticipation
+      - Student
+    notes:
+      - "Submission.status values: 'accepted', 'wrong_answer', 'time_limit', 'runtime_error'"
+      - "Only 'accepted' submissions count as solved problems"
+      - "Problem.difficulty: 'easy', 'medium', 'hard'"
+      - "ContestParticipation.rank is the student's rank in that contest"
+      - "To count solved problems: COUNT submissions WHERE status = 'accepted'"
+
+  clubs:
+    description: "Student clubs and memberships"
+    tables:
+      - Club
+      - ClubMember
+      - Student
+      - Center
+    notes:
+      - "ClubMember.role values: 'president', 'member'"
+      - "Clubs are center-specific (same club name may exist in multiple centers)"
+      - "joined_date tracks when the student joined the club"
+
+  placements:
+    description: "Student placement/job offers and outcomes"
+    tables:
+      - Placement
+      - Student
+      - Center
+      - Batch
+    notes:
+      - "package_lpa is the annual salary in Lakhs Per Annum (LPA)"
+      - "status values: 'offered', 'accepted', 'rejected'"
+      - "Only 'accepted' or 'offered' count as placed students"
+      - "For salary queries, use package_lpa column"
+
+  students:
+    description: "Student demographics and enrollment"
+    tables:
+      - Student
+      - Batch
+      - Center
+    notes:
+      - "Students belong to exactly one batch and one center"
+      - "is_active=1 means currently enrolled"
+      - "enrollment_date is when the student joined"
+
+  projects:
+    description: "Student project submissions and scores"
+    tables:
+      - Project
+      - Student
+    notes:
+      - "tech_stack is a comma-separated string of technologies"
+      - "score is out of 100"
+
+  certifications:
+    description: "External certifications obtained by students"
+    tables:
+      - Certification
+      - Student
+    notes:
+      - "expiry_date can be NULL for certifications that don't expire"
+      - "issuing_org is the organization that issued the certification"
+
+# Table-level annotations
+tables:
+  Student:
+    description: "Core student table - every student has a center and batch"
+    columns:
+      id: "Primary key"
+      name: "Full name of the student"
+      email: "College email address"
+      phone: "10-digit phone number"
+      batch_id: "FK to Batch - which batch the student belongs to"
+      center_id: "FK to Center - which center/campus"
+      enrollment_date: "Date student enrolled (YYYY-MM-DD)"
+      is_active: "1=active, 0=inactive/dropped"
+
+  Center:
+    description: "Physical campus/center locations"
+    columns:
+      id: "Primary key"
+      name: "Center name (e.g., 'Center Delhi')"
+      city: "City where center is located"
+      state: "State"
+      is_active: "1=operational, 0=closed"
+
+  Batch:
+    description: "Student cohort/batch within a center"
+    columns:
+      id: "Primary key"
+      name: "Batch name (e.g., 'Batch A')"
+      center_id: "FK to Center"
+      start_date: "Batch start date"
+      end_date: "Batch end date (NULL if ongoing)"
+      is_active: "1=active, 0=completed"
+
+  Attendance:
+    description: "Daily attendance record per student per class"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      class_id: "FK to Class"
+      center_id: "FK to Center"
+      attendance_date: "Date of attendance (YYYY-MM-DD)"
+      status: "'present', 'absent', or 'late'"
+
+  Class:
+    description: "Scheduled class sessions"
+    columns:
+      id: "Primary key"
+      subject_id: "FK to Subject"
+      batch_id: "FK to Batch"
+      center_id: "FK to Center"
+      instructor_name: "Name of the instructor"
+      class_date: "Date of the class (YYYY-MM-DD)"
+      start_time: "Class start time (HH:MM)"
+      end_time: "Class end time (HH:MM)"
+
+  Subject:
+    description: "Academic subjects/courses"
+    columns:
+      id: "Primary key"
+      name: "Subject name"
+      code: "Subject code (e.g., 'CS201')"
+      description: "Brief description"
+
+  Exam:
+    description: "Exam/test definitions"
+    columns:
+      id: "Primary key"
+      name: "Exam name"
+      subject_id: "FK to Subject"
+      batch_id: "FK to Batch"
+      exam_date: "Date of exam"
+      total_marks: "Maximum possible marks"
+
+  StudentExamMarks:
+    description: "Student scores in exams"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      exam_id: "FK to Exam"
+      marks_obtained: "Actual marks scored"
+      grade: "Letter grade (A+, A, B+, B, C+, C, D, F)"
+
+  Problem:
+    description: "Coding problems on the platform"
+    columns:
+      id: "Primary key"
+      title: "Problem title"
+      difficulty: "'easy', 'medium', or 'hard'"
+      topic: "Problem topic/category"
+      points: "Points awarded for solving"
+
+  Submission:
+    description: "Code submissions by students"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      problem_id: "FK to Problem"
+      submitted_at: "Timestamp of submission"
+      status: "'accepted', 'wrong_answer', 'time_limit', 'runtime_error'"
+      language: "Programming language used"
+
+  Contest:
+    description: "Coding contests/competitions"
+    columns:
+      id: "Primary key"
+      name: "Contest name"
+      contest_date: "Date of contest"
+      duration_minutes: "Contest duration in minutes"
+
+  ContestParticipation:
+    description: "Student participation and scores in contests"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      contest_id: "FK to Contest"
+      score: "Total score in the contest"
+      rank: "Rank achieved"
+
+  Club:
+    description: "Student clubs at each center"
+    columns:
+      id: "Primary key"
+      name: "Club name"
+      description: "Club description"
+      center_id: "FK to Center"
+
+  ClubMember:
+    description: "Club membership records"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      club_id: "FK to Club"
+      role: "'president' or 'member'"
+      joined_date: "Date student joined the club"
+
+  Placement:
+    description: "Job placement records"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      company_name: "Company name"
+      role_title: "Job title/role"
+      package_lpa: "Annual package in Lakhs Per Annum"
+      placement_date: "Date of placement"
+      status: "'offered', 'accepted', or 'rejected'"
+
+  Project:
+    description: "Student project submissions"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      title: "Project title"
+      description: "Project description"
+      tech_stack: "Technologies used (comma-separated)"
+      submitted_date: "Submission date"
+      score: "Project score (out of 100)"
+
+  Certification:
+    description: "External certifications obtained"
+    columns:
+      id: "Primary key"
+      student_id: "FK to Student"
+      name: "Certification name"
+      issuing_org: "Issuing organization"
+      issue_date: "Date issued"
+      expiry_date: "Expiry date (NULL if no expiry)"
+
+# Common relationships for JOINs
+relationships:
+  - "Student.batch_id -> Batch.id"
+  - "Student.center_id -> Center.id"
+  - "Batch.center_id -> Center.id"
+  - "Class.subject_id -> Subject.id"
+  - "Class.batch_id -> Batch.id"
+  - "Class.center_id -> Center.id"
+  - "Attendance.student_id -> Student.id"
+  - "Attendance.class_id -> Class.id"
+  - "Attendance.center_id -> Center.id"
+  - "Exam.subject_id -> Subject.id"
+  - "Exam.batch_id -> Batch.id"
+  - "StudentExamMarks.student_id -> Student.id"
+  - "StudentExamMarks.exam_id -> Exam.id"
+  - "Submission.student_id -> Student.id"
+  - "Submission.problem_id -> Problem.id"
+  - "ContestParticipation.student_id -> Student.id"
+  - "ContestParticipation.contest_id -> Contest.id"
+  - "ClubMember.student_id -> Student.id"
+  - "ClubMember.club_id -> Club.id"
+  - "Placement.student_id -> Student.id"
+  - "Project.student_id -> Student.id"
+  - "Certification.student_id -> Student.id"
+  - "Club.center_id -> Center.id"
+
+# Columns to EXCLUDE from schema context (sensitive data)
+excluded_columns:
+  - "phone"
+  - "email"
