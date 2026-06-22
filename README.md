@@ -2,7 +2,7 @@
 
 A natural language chatbot that lets you query a college operations database using plain English, Hindi, or Hinglish. No SQL knowledge needed — just ask questions and get answers.
 
-Built with **FastAPI**, **Google Gemini**, **LangChain**, **SQLAlchemy**, and **Streamlit**.
+Built with **FastAPI**, **Google Gemini**, **SQLAlchemy**, and **Streamlit**. Managed with **uv**. Containerized with **Docker**.
 
 ---
 
@@ -65,6 +65,8 @@ User Question (EN/HI/Hinglish)
 | Schema Metadata | YAML + DB introspection |
 | Frontend | Streamlit |
 | Config | pydantic-settings |
+| Package Manager | uv |
+| Containerization | Docker + Docker Compose |
 | Testing | pytest (80 tests) |
 
 ---
@@ -76,11 +78,43 @@ User Question (EN/HI/Hinglish)
 - Python 3.11+
 - A [Google Gemini API key](https://aistudio.google.com/apikey)
 
-### Setup
+### Option 1: Using uv (Recommended)
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager that handles dependencies and virtual environments automatically.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/college-chatbot.git
-cd college-chatbot
+# Install uv (if not installed)
+# Windows:
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# macOS/Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and setup
+git clone https://github.com/UmeshGit125/ChatBot.git
+cd ChatBot
+
+# Install all dependencies (creates .venv automatically)
+uv sync
+
+# Configure environment
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
+
+# Run the backend
+uv run uvicorn app.main:app --reload --port 8000
+
+# Run Streamlit UI (in another terminal)
+uv run streamlit run streamlit_app/app.py
+
+# Run tests
+uv run pytest tests/ -v
+```
+
+### Option 2: Using pip
+
+```bash
+git clone https://github.com/UmeshGit125/ChatBot.git
+cd ChatBot
 
 # Install dependencies
 pip install -r requirements.txt
@@ -88,28 +122,45 @@ pip install -r requirements.txt
 # Configure environment
 cp .env.example .env
 # Edit .env and add your GEMINI_API_KEY
-```
 
-### Run the Backend
-
-```bash
+# Run the backend
 uvicorn app.main:app --reload --port 8000
-```
 
-API available at http://localhost:8000 | Swagger docs at http://localhost:8000/docs
-
-### Run the Chat UI
-
-```bash
+# Run Streamlit UI (in another terminal)
 streamlit run streamlit_app/app.py
+
+# Run tests
+pytest tests/ -v
 ```
 
-Opens at http://localhost:8501
+### Option 3: Using Docker
 
-### Run Tests
+No Python installation needed — just Docker.
 
 ```bash
-pytest tests/ -v
+git clone https://github.com/UmeshGit125/ChatBot.git
+cd ChatBot
+
+# Configure environment
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
+
+# Start both backend + UI
+docker compose up --build
+```
+
+- Backend API: http://localhost:8000
+- Streamlit UI: http://localhost:8501
+- Swagger docs: http://localhost:8000/docs
+
+To stop:
+```bash
+docker compose down
+```
+
+To rebuild after code changes:
+```bash
+docker compose up --build
 ```
 
 ---
@@ -153,8 +204,13 @@ college-chatbot/
 ├── tests/                      # 80 tests across all modules
 ├── docs/
 │   └── GUIDE.md                # Detailed developer guide
-├── .env.example
-└── requirements.txt
+├── Dockerfile                  # Backend container
+├── Dockerfile.streamlit        # Streamlit UI container
+├── docker-compose.yml          # Multi-container orchestration
+├── pyproject.toml              # Project config + dependencies (uv)
+├── uv.lock                     # Locked dependency versions
+├── requirements.txt            # pip fallback
+└── .env.example                # Environment template
 ```
 
 ---
