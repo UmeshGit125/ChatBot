@@ -39,6 +39,8 @@ async def execute_read_query(sql: str) -> list[dict[str, Any]]:
     """
     Execute a read-only SQL query and return results as list of dicts.
 
+    Routes through Metabase API if USE_METABASE=true, otherwise direct DB.
+
     Args:
         sql: The SQL SELECT query to execute.
 
@@ -48,6 +50,12 @@ async def execute_read_query(sql: str) -> list[dict[str, Any]]:
     Raises:
         RuntimeError: If query execution fails.
     """
+    # Route through Metabase if configured
+    if settings.USE_METABASE and settings.METABASE_URL:
+        from app.db.metabase_client import metabase_client
+        return await metabase_client.execute_query(sql)
+
+    # Direct database execution
     engine = get_engine()
 
     try:

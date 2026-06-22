@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./mock.db"
 
+    # Metabase (alternative to direct DB)
+    USE_METABASE: bool = False
+    METABASE_URL: Optional[str] = None
+    METABASE_USERNAME: Optional[str] = None
+    METABASE_PASSWORD: Optional[str] = None
+    METABASE_DATABASE_ID: int = 1
+
     # LLM Provider
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: Optional[str] = None
