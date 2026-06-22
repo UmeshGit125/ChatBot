@@ -51,7 +51,12 @@ college-chatbot/
 │   └── GUIDE.md                     # This file
 ├── .env.example                     # Template for environment variables
 ├── .env                             # Local environment (gitignored in production)
-├── requirements.txt                 # Python dependencies
+├── requirements.txt                 # Python dependencies (pip fallback)
+├── pyproject.toml                   # Project config + dependencies (uv)
+├── uv.lock                          # Locked dependency versions
+├── Dockerfile                       # Backend container image
+├── Dockerfile.streamlit             # Streamlit UI container image
+├── docker-compose.yml               # Multi-container orchestration
 └── pytest.ini                       # Pytest configuration
 ```
 
@@ -127,45 +132,72 @@ User Question (English/Hindi/Hinglish)
 - Python 3.11+
 - A Google Gemini API key (get one at https://aistudio.google.com/apikey)
 
-### Setup
+### Option 1: Using uv (Recommended)
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager. It handles virtual environments and dependency resolution automatically.
 
 ```bash
-# Clone and enter the project
-cd college-chatbot
+# Install uv
+# Windows:
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# macOS/Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# Install all dependencies (creates .venv automatically)
+uv sync
+
+# Configure environment
+cp .env.example .env
+# Edit .env and set your GEMINI_API_KEY
+
+# Start the backend
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Start Streamlit UI (separate terminal)
+uv run streamlit run streamlit_app/app.py
+
+# Run tests
+uv run pytest tests/ -v
+```
+
+### Option 2: Using pip
+
+```bash
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
 # Edit .env and set your GEMINI_API_KEY
-```
 
-### Start the Backend
-
-```bash
-# From the college-chatbot/ directory
+# Start the backend
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
 
-The API will be available at http://localhost:8000. Check http://localhost:8000/docs for the Swagger UI.
-
-### Start the Streamlit UI
-
-In a separate terminal:
-
-```bash
-# From the college-chatbot/ directory
+# Start Streamlit UI (separate terminal)
 streamlit run streamlit_app/app.py
-```
 
-The chat UI will open at http://localhost:8501.
-
-### Run Tests
-
-```bash
+# Run tests
 pytest tests/ -v
 ```
+
+### Option 3: Using Docker
+
+No Python installation required. Docker handles everything.
+
+```bash
+# Configure environment
+cp .env.example .env
+# Edit .env and set your GEMINI_API_KEY
+
+# Build and start both services
+docker compose up --build
+```
+
+- Backend API: http://localhost:8000
+- Streamlit UI: http://localhost:8501
+- Swagger docs: http://localhost:8000/docs
+
+See the **Docker** section below for full details.
 
 ---
 
@@ -354,3 +386,227 @@ Query audit log viewer with pagination. Returns logs in reverse chronological or
 5. **Conversation State**: In-memory (not persistent) for v1. Enables clarification follow-ups. Conversations expire after 10 minutes.
 
 6. **JSON-Lines Logging**: Simple, append-only, parseable. Easy to ship to any log aggregator later.
+
+---
+
+## Docker
+
+### Overview
+
+The project ships with two Dockerfiles and a docker-compose.yml that runs the full stack:
+
+```
+┌─────────────────────────────────────────────────┐
+│              docker compose up                    │
+│                                                   │
+│  ┌─────────────────┐    ┌─────────────────────┐  │
+│  │  backend         │    │  streamlit           │  │
+│  │  (Dockerfile)    │    │  (Dockerfile.streamlit)│ │
+│  │                  │    │                       │  │
+│  │  FastAPI + uv    │◄───│  Streamlit + uv      │  │
+│  │  Port 8000       │    │  Port 8501           │  │
+│  └─────────────────┘    └─────────────────────┘  │
+│         │                         │                │
+│         ▼                         ▼                │
+│   SQLite (mock.db)         Calls backend:8000      │
+│   inside container         via Docker network      │
+└─────────────────────────────────────────────────┘
+```
+
+### Files Explained
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Builds the **backend** image (FastAPI + all app code) |
+| `Dockerfile.streamlit` | Builds the **Streamlit UI** image |
+| `docker-compose.yml` | Orchestrates both services, wires networking, passes env vars |
+| `.dockerignore` | Excludes .env, .git, tests, __pycache__ from images |
+
+### How the Docker Build Works
+
+Both Dockerfiles follow the same pattern:
+
+1. **Base image**: `python:3.11-slim` (small, production-ready)
+2. **Install uv**: Copied from the official `ghcr.io/astral-sh/uv` image
+3. **Copy dependency files**: `pyproject.toml` + `uv.lock` (cached layer)
+4. **Install deps**: `uv sync --frozen --no-dev` (fast, locked versions, no dev deps)
+5. **Copy app code**: Only the application files needed to run
+6. **Non-root user**: Runs as `appuser` for security
+7. **CMD**: Starts the service
+
+This means dependency installation is **cached** — rebuilds are fast unless you change `pyproject.toml`.
+
+### Commands
+
+```bash
+# Build and start everything
+docker compose up --build
+
+# Start in background (detached)
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# View logs for a specific service
+docker compose logs -f backend
+docker compose logs -f streamlit
+
+# Stop everything
+docker compose down
+
+# Rebuild after code changes
+docker compose up --build
+
+# Remove everything (containers + volumes)
+docker compose down -v
+```
+
+### Environment Variables in Docker
+
+The `docker-compose.yml` reads your `.env` file automatically via `env_file: .env`. You only need to:
+
+1. Copy `.env.example` to `.env`
+2. Set your `GEMINI_API_KEY`
+3. Run `docker compose up --build`
+
+The Streamlit container overrides `BACKEND_URL` to `http://backend:8000` — this uses Docker's internal DNS so the UI container can reach the backend container by service name.
+
+### Health Checks
+
+The backend service has a health check configured:
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+```
+
+The Streamlit service waits for the backend to be healthy before starting (`depends_on` with `condition: service_healthy`).
+
+### Using Real PostgreSQL with Docker
+
+To connect to a PostgreSQL database from inside Docker:
+
+```yaml
+# In docker-compose.yml, change the backend environment:
+environment:
+  - DATABASE_URL=postgresql+asyncpg://user:pass@host.docker.internal:5432/college_db
+```
+
+`host.docker.internal` lets the container reach your host machine's PostgreSQL. For a containerized Postgres, add it as a service:
+
+```yaml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: college_db
+      POSTGRES_USER: chatbot_reader
+      POSTGRES_PASSWORD: secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    # ... existing config ...
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://chatbot_reader:secure_password@db:5432/college_db
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+```
+
+### Building Individual Images
+
+```bash
+# Build just the backend
+docker build -t college-chatbot-backend .
+
+# Build just the streamlit UI
+docker build -t college-chatbot-ui -f Dockerfile.streamlit .
+
+# Run backend standalone
+docker run -p 8000:8000 --env-file .env college-chatbot-backend
+
+# Run UI standalone (needs backend running)
+docker run -p 8501:8501 -e BACKEND_URL=http://host.docker.internal:8000 college-chatbot-ui
+```
+
+### Image Sizes
+
+The images are kept small by:
+- Using `python:3.11-slim` (not full Python image)
+- `.dockerignore` excludes tests, docs, .git, __pycache__
+- `--no-dev` flag skips test dependencies in production
+- No unnecessary system packages installed
+
+Expected sizes: ~300-400MB per image (mostly Python + ML libraries).
+
+---
+
+## uv Package Manager
+
+### Why uv?
+
+- 10-100x faster than pip for installs
+- Automatic virtual environment management
+- Deterministic builds via `uv.lock`
+- No need to manually create/activate venvs
+- Compatible with `pyproject.toml` standard
+
+### Key Commands
+
+```bash
+# Install all dependencies (creates .venv/)
+uv sync
+
+# Install with dev dependencies (for testing)
+uv sync --dev
+
+# Add a new dependency
+uv add package-name
+
+# Add a dev dependency
+uv add --dev package-name
+
+# Remove a dependency
+uv remove package-name
+
+# Run a command in the project environment
+uv run python -c "print('hello')"
+uv run uvicorn app.main:app --reload
+uv run pytest tests/ -v
+
+# Update lock file after changing pyproject.toml
+uv lock
+
+# Show dependency tree
+uv tree
+```
+
+### How It Works with Docker
+
+The Dockerfiles use uv inside the container:
+1. `uv sync --frozen` installs exactly what's in `uv.lock` (no resolution needed)
+2. `uv run` runs commands using the installed environment
+3. `--no-dev` excludes test dependencies from production images
+
+### Fallback to pip
+
+If you prefer pip, `requirements.txt` is still maintained. Both work:
+
+```bash
+# pip way
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+# uv way
+uv sync
+uv run uvicorn app.main:app --reload
+```
