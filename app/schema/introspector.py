@@ -8,6 +8,10 @@ from app.db.connection import execute_read_query
 
 async def get_table_names() -> list[str]:
     """Get all table names from the database."""
+    if settings.USE_METABASE and settings.METABASE_URL:
+        from app.db.metabase_client import metabase_client
+        return await metabase_client.get_tables()
+
     if settings.is_sqlite:
         results = await execute_read_query(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -23,6 +27,25 @@ async def get_table_names() -> list[str]:
 
 async def get_table_columns(table_name: str) -> list[dict[str, Any]]:
     """Get column info for a specific table."""
+    if settings.USE_METABASE and settings.METABASE_URL:
+        # Use Metabase's native query to get column info
+        results = await execute_read_query(
+            f"SELECT column_name, data_type, is_nullable, column_default "
+            f"FROM information_schema.columns "
+            f"WHERE table_schema = 'public' AND table_name = '{table_name}' "
+            f"ORDER BY ordinal_position"
+        )
+        return [
+            {
+                "column_name": row["column_name"],
+                "data_type": row["data_type"],
+                "is_nullable": row.get("is_nullable", "YES") == "YES",
+                "is_primary_key": False,
+                "default_value": row.get("column_default"),
+            }
+            for row in results
+        ]
+
     if settings.is_sqlite:
         results = await execute_read_query(f"PRAGMA table_info('{table_name}')")
         return [
