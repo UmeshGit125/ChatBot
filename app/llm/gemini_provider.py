@@ -1,9 +1,11 @@
-"""Google Gemini LLM provider implementation."""
+"""Google Gemini LLM provider implementation using google.genai SDK."""
 
+import asyncio
 import json
 import re
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.core.config import settings
 from app.llm.base import AmbiguityResult, BaseLLMProvider
@@ -17,24 +19,26 @@ from app.llm.prompts.templates import (
 
 
 class GeminiProvider(BaseLLMProvider):
-    """Google Gemini LLM provider."""
+    """Google Gemini LLM provider using the new google.genai SDK."""
 
     def __init__(self):
         if not settings.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is required for Gemini provider")
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self.model = "gemini-2.5-flash"
 
     async def _generate(self, prompt: str) -> str:
         """Generate text from a prompt with retry and exponential backoff."""
-        import asyncio
-
         max_retries = 3
         base_delay = 1.0
 
         for attempt in range(max_retries):
             try:
-                response = await self.model.generate_content_async(prompt)
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.model,
+                    contents=prompt,
+                )
                 return response.text.strip()
             except Exception as e:
                 if attempt == max_retries - 1:

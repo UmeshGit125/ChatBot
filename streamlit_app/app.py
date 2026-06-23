@@ -64,7 +64,7 @@ def send_question(question: str) -> dict:
         response = requests.post(
             f"{BACKEND_URL}/api/chat",
             json=payload,
-            timeout=60,
+            timeout=120,
         )
         response.raise_for_status()
         return response.json()
