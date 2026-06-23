@@ -82,6 +82,10 @@ async def init_mock_db() -> None:
     if not settings.is_sqlite:
         return
 
+    # Skip mock DB init if using Metabase
+    if settings.USE_METABASE:
+        return
+
     engine = get_engine()
 
     # Read schema SQL

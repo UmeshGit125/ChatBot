@@ -23,14 +23,18 @@ def _snake_to_title(name: str) -> str:
 
 
 def _is_single_value_result(results: list[dict]) -> bool:
-    """Check if result is a single aggregate value."""
+    """Check if result is a single aggregate value (COUNT, AVG, SUM, etc.)."""
     if len(results) != 1:
         return False
     row = results[0]
-    # Single row with 1-2 columns that look like aggregates
-    if len(row) <= 2:
-        return True
-    return False
+    # Must be a single column that looks like an aggregate
+    if len(row) != 1:
+        return False
+    # Check if the column name suggests an aggregate
+    key = list(row.keys())[0].lower()
+    aggregate_indicators = ["count", "avg", "sum", "min", "max", "total", "average"]
+    return any(ind in key for ind in aggregate_indicators)
+
 
 
 def _format_table(results: list[dict], max_rows: int = MAX_TABLE_ROWS) -> str:
@@ -138,29 +142,35 @@ async def format_response(
 
     # No results
     if not results:
-        return "No results found for your query. Try broadening your search or rephrasing your question."
+        return (
+            "I couldn't find any matching data. This might mean:\n"
+            "- The specific record doesn't exist in the database\n"
+            "- The filters were too specific\n\n"
+            "Try rephrasing with fewer constraints or asking what data is available."
+        )
 
     # Try to get LLM-generated natural language summary
     llm = provider or get_provider()
 
     try:
         if _is_single_value_result(results):
-            # For single values, let LLM create a natural sentence
+            # For true aggregates (COUNT, AVG, etc.), let LLM create a natural sentence
             response = await llm.generate_response(question, sql, results)
             return response
         else:
-            # For multi-row, get a one-line intro then show table
-            summary = await llm.generate_response(question, sql, results)
+            # For all data results (even 1 row), always show table with a brief intro
             table = _format_table(results)
-            # Only use the summary if it's a brief intro (1-2 lines, no data listing)
-            summary_lines = summary.strip().split("\n")
-            # If summary is short (1-2 lines) and doesn't contain table-like formatting, use it
-            if len(summary_lines) <= 2 and "|" not in summary:
-                return f"{summary.strip()}\n\n{table}"
-            else:
-                # LLM gave too much detail - just use a generic intro + table
-                count = len(results)
-                return f"Found {count} result{'s' if count > 1 else ''}:\n\n{table}"
+            try:
+                summary = await llm.generate_response(question, sql, results)
+                summary_clean = summary.strip()
+                # Only use summary if it's short and doesn't contain actual data values
+                if len(summary_clean) < 200 and "|" not in summary_clean and "@" not in summary_clean:
+                    return f"{summary_clean}\n\n{table}"
+            except Exception:
+                pass
+            # Fallback: generic intro + table
+            count = len(results)
+            return f"Found {count} result{'s' if count > 1 else ''}:\n\n{table}"
     except Exception:
         # Fallback to basic formatting if LLM fails
         return format_results_basic(results, question)

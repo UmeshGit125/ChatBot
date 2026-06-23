@@ -19,7 +19,7 @@ Respond with ONLY the domain name (one word, lowercase). No explanation.
 Question: {question}
 Domain:"""
 
-SQL_GENERATION_PROMPT = """You are an expert SQL query generator for a college database.
+SQL_GENERATION_PROMPT = """You are an expert SQL query generator for a PostgreSQL college database.
 Given a user question and the database schema, generate a SQL SELECT query.
 
 RULES:
@@ -29,11 +29,46 @@ RULES:
 4. The question may be in English, Hindi, or Hinglish - always generate standard SQL.
 5. Use aliases for readability.
 6. For percentage calculations, use CAST or multiply by 100.0 for float division.
-7. For date filtering, dates are stored as TEXT in 'YYYY-MM-DD' format.
-8. For attendance percentage: COUNT(CASE WHEN status='present' THEN 1 END) * 100.0 / COUNT(*)
-9. When counting "present" attendance, the status value is exactly 'present' (lowercase).
+7. IMPORTANT: All table names with uppercase letters MUST be double-quoted: "Student", "Center", "Batch", "Attendance", etc. Lowercase tables like problem, submission, contest do NOT need quotes.
+8. For date filtering, use timestamps: column >= '2024-01-01' or column::date = '2024-01-15'
+9. For attendance: status is an enum with values like 'PRESENT', 'ABSENT' (uppercase).
 10. Limit results to 50 rows unless the query is an aggregate (COUNT, SUM, AVG, etc.)
 11. Always include student names in results when the query is about specific students.
+12. Use ILIKE instead of = for name matching (case-insensitive): WHERE name ILIKE '%search%'
+13. For partial/fuzzy matching on names, centers, batches - always use ILIKE with % wildcards.
+14. IDs in this database are UUID text fields, not integers.
+
+KNOWN DATA VALUES (use these for matching):
+- Centers: 'IOI Bengaluru', 'IOI Delhi', 'IOI Noida', 'IOI Pune', 'IOI Patna', 'IOI Lucknow', 'IOI Indore', 'PW Skills Bangalore', 'PW Skills Noida', 'PW Skills Lucknow', 'PW Skills Patna', 'PW Skills Indore', 'PW Skills Pune', 'PW Skills Gurugram', 'PW Skills Chandigarh', 'PW Skills Chennai'
+- Batches: '23', '24', '25' (just numbers), also certification course names
+- Attendance status: 'PRESENT', 'ABSENT', 'LATE'
+- Problem difficulty: 'EASY', 'MEDIUM', 'HARD'
+- Submission status: 'Accepted', 'Wrong Answer', 'Time Limit Exceeded', 'Runtime Error'
+- Placement job_type: 'INTERNSHIP', 'FULL_TIME'
+- Placement work_mode: 'REMOTE', 'ONSITE', 'HYBRID'
+- Gender: 'MALE', 'FEMALE'
+
+IMPORTANT PATTERNS:
+- "Current semester" means: use Student.semester_id to JOIN "Semester" and filter classes/attendance within Semester.start_date and Semester.end_date
+- "Nth semester" (e.g., 4th semester) means: find the Semester where number=N for the student's division, then filter attendance by class dates within that semester's date range
+- Pattern for semester-specific attendance:
+  JOIN "Attendance" A ON S.id = A.student_id
+  JOIN "Class" Cl ON A.class_id = Cl.id
+  JOIN "Semester" Sm ON Sm.division_id = S.division_id AND Sm.number = N
+  WHERE Cl.start_date >= Sm.start_date AND (Sm.end_date IS NULL OR Cl.start_date <= Sm.end_date)
+- Pattern for current semester attendance:
+  JOIN "Semester" Sm ON S.semester_id = Sm.id
+  JOIN "Attendance" A ON A.student_id = S.id
+  JOIN "Class" Cl ON A.class_id = Cl.id
+  WHERE Cl.start_date >= Sm.start_date AND (Sm.end_date IS NULL OR Cl.start_date <= Sm.end_date)
+- CRITICAL: To get attendance for a SPECIFIC semester, you MUST filter Class.start_date by the semester's date range. Without this date filter, you get ALL-TIME attendance, not semester-specific.
+- "Batch 24" or "24 batch" means WHERE B.name = '24' (Batch.name is the batch identifier)
+- For attendance percentage: ROUND(COUNT(CASE WHEN A.status = 'PRESENT' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1)
+- Use NULLIF(COUNT(*), 0) to avoid division by zero
+- Student hierarchy: Student -> Division -> Batch -> Center (also Student has direct batch_id and center_id)
+- Semester belongs to Division: Semester.division_id -> Division.id
+- To link a student to their Nth semester: "Semester" WHERE division_id = Student.division_id AND number = N
+- "sot" or "SOT" refers to the school/program, usually maps to IOI centers
 
 DATABASE SCHEMA:
 {schema_context}
@@ -47,14 +82,13 @@ the SQL query that was run, and the results, provide a clear and friendly respon
 
 RULES:
 1. If the results are empty, say so politely and suggest alternatives.
-2. For single-value results (counts, averages), write a natural sentence with the answer.
-3. For multi-row results, write ONLY a brief one-line summary (e.g., "Here are the 16 active students from Center Delhi:"). Do NOT list the individual rows or names — they will be shown in a table separately.
+2. For single-value results (COUNT, AVG, SUM only), write a natural sentence with the number.
+3. For results with actual data (names, emails, etc.), write a brief intro then the data will be shown in a table below. Do NOT list the data yourself — just write a 1-line intro.
 4. Keep responses concise and conversational.
 5. If there was an error, explain it in simple terms.
 6. Respond in the same language as the question (English/Hindi/Hinglish).
-7. For single-value results, include the number in your sentence.
-8. Don't repeat the SQL query in your response.
-9. NEVER list individual data rows for multi-row results. Just give a short intro sentence.
+7. NEVER list individual rows of data — the table formatter handles that.
+8. Just say something like "Found 1 student matching your search:" or "Here are the results:"
 
 USER QUESTION: {question}
 SQL QUERY: {sql}
@@ -62,7 +96,7 @@ RESULTS (first few rows): {results}
 TOTAL ROW COUNT: {row_count}
 ERROR: {error}
 
-Response:"""
+Response (1-2 lines max, NO data listing):"""
 
 AMBIGUITY_ASSESSMENT_PROMPT = """You are an ambiguity detector for a college data assistant.
 Assess whether the user's question is clear enough to generate a SQL query.

@@ -9,6 +9,7 @@ from app.schema.introspector import get_full_schema
 
 
 _annotations_cache: dict | None = None
+_schema_cache: dict | None = None
 
 
 def load_annotations() -> dict:
@@ -21,6 +22,21 @@ def load_annotations() -> dict:
         with open(annotations_path, "r") as f:
             _annotations_cache = yaml.safe_load(f)
     return _annotations_cache
+
+
+def load_schema_cache() -> dict:
+    """Load the cached schema reference (centers, batches, enums, etc.)."""
+    global _schema_cache
+    if _schema_cache is None:
+        cache_path = os.path.join(
+            os.path.dirname(__file__), "schema_cache.yaml"
+        )
+        if os.path.exists(cache_path):
+            with open(cache_path, "r") as f:
+                _schema_cache = yaml.safe_load(f)
+        else:
+            _schema_cache = {}
+    return _schema_cache
 
 
 def get_domain_tables(domain: str) -> list[str]:
@@ -143,7 +159,6 @@ async def build_schema_context(
         # Filter to relevant tables
         relevant_rels = []
         for rel in relationships:
-            # Check if either side of the relationship mentions a relevant table
             for table in relevant_tables:
                 if table in rel:
                     relevant_rels.append(rel)
@@ -154,6 +169,22 @@ async def build_schema_context(
             for rel in relevant_rels:
                 lines.append(f"- {rel}")
             lines.append("")
+
+    # Add cached reference data (centers, enums, etc.)
+    cache = load_schema_cache()
+    if cache:
+        lines.append("### Reference Data (exact values in DB):")
+        if cache.get("centers"):
+            lines.append(f"- Centers: {', '.join(cache['centers'][:10])}...")
+        if cache.get("enums"):
+            for enum_name, values in cache["enums"].items():
+                if any(enum_name in note.lower() for note in (get_domain_notes(domain) if domain else [])):
+                    lines.append(f"- {enum_name}: {', '.join(values)}")
+        if cache.get("table_quoting"):
+            quoted = cache["table_quoting"].get("needs_quotes", [])
+            if quoted:
+                lines.append(f"- Tables needing double quotes: {', '.join(quoted[:8])}...")
+        lines.append("")
 
     return "\n".join(lines)
 
