@@ -10,6 +10,7 @@ from app.schema.introspector import get_full_schema
 
 _annotations_cache: dict | None = None
 _schema_cache: dict | None = None
+_db_relationships_cache: dict | None = None
 
 
 def load_annotations() -> dict:
@@ -37,6 +38,21 @@ def load_schema_cache() -> dict:
         else:
             _schema_cache = {}
     return _schema_cache
+
+
+def load_db_relationships() -> dict:
+    """Load the complete FK relationship graph."""
+    global _db_relationships_cache
+    if _db_relationships_cache is None:
+        rel_path = os.path.join(
+            os.path.dirname(__file__), "db_relationships.yaml"
+        )
+        if os.path.exists(rel_path):
+            with open(rel_path, "r") as f:
+                _db_relationships_cache = yaml.safe_load(f)
+        else:
+            _db_relationships_cache = {}
+    return _db_relationships_cache
 
 
 def get_domain_tables(domain: str) -> list[str]:
@@ -185,6 +201,46 @@ async def build_schema_context(
             if quoted:
                 lines.append(f"- Tables needing double quotes: {', '.join(quoted[:8])}...")
         lines.append("")
+
+    # Add common JOIN paths from db_relationships
+    db_rels = load_db_relationships()
+    if db_rels and db_rels.get("common_paths"):
+        lines.append("### Common JOIN Paths:")
+        # Include relevant paths based on domain
+        domain_to_path_keys = {
+            "attendance": ["student_with_center_and_batch", "student_attendance_with_class", "attendance_in_semester", "student_nth_semester"],
+            "academics": ["student_exam_marks", "student_with_center_and_batch", "student_semester", "student_nth_semester"],
+            "coding": ["student_submissions", "student_with_center_and_batch"],
+            "clubs": ["club_members_with_center", "student_with_center_and_batch"],
+            "students": ["student_with_center_and_batch", "student_semester"],
+            "placements": ["student_with_center_and_batch"],
+        }
+        path_keys = domain_to_path_keys.get(domain, list(db_rels["common_paths"].keys())[:4])
+        for key in path_keys:
+            if key in db_rels["common_paths"]:
+                lines.append(f"```\n-- {key}:\n{db_rels['common_paths'][key].strip()}\n```")
+        lines.append("")
+
+    # Add domain-specific FK relationships
+    if db_rels:
+        domain_to_rel_keys = {
+            "attendance": ["student_joins", "attendance_joins"],
+            "academics": ["student_joins", "academics_joins"],
+            "coding": ["student_joins", "coding_joins"],
+            "clubs": ["student_joins", "club_joins"],
+            "placements": ["student_joins", "career_joins"],
+            "students": ["student_joins", "organization_joins"],
+        }
+        rel_keys = domain_to_rel_keys.get(domain, ["student_joins", "organization_joins"])
+        rel_lines = []
+        for key in rel_keys:
+            if key in db_rels:
+                rel_lines.extend(db_rels[key])
+        if rel_lines:
+            lines.append("### FK Relationships:")
+            for rel in rel_lines[:15]:  # Limit to avoid token bloat
+                lines.append(f"- {rel}")
+            lines.append("")
 
     return "\n".join(lines)
 
