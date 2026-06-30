@@ -62,6 +62,8 @@ async def health_check():
 # Import and include routers
 from app.api.chat import router as chat_router  # noqa: E402
 from app.api.logs import router as logs_router  # noqa: E402
+from app.api.conversations import router as conversations_router  # noqa: E402
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(logs_router, prefix="/api")
+app.include_router(conversations_router, prefix="/api")

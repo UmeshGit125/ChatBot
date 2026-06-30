@@ -129,15 +129,40 @@ User Question (English/Hindi/Hinglish)
 
 ### Prerequisites
 
-- Python 3.11+
-- A Google Gemini API key (get one at https://aistudio.google.com/apikey)
+- **Python 3.11+**
+- **Node.js 18+ and npm** (required to run the Next.js frontend locally)
+- A **[Google Gemini API key](https://aistudio.google.com/apikey)**
 
-### Option 1: Using uv (Recommended)
+### Option 1: Running with Docker (Recommended & Easiest)
 
+No Python or Node.js installation is required. Docker builds and orchestrates all containers automatically:
+
+```bash
+# Configure environment
+cp .env.example .env
+# Edit .env and set your GEMINI_API_KEY
+
+# Build and start both services
+docker compose up --build
+```
+
+- **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **Swagger docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+See the **Docker** section below for full details.
+
+### Option 2: Running Locally (Manual Setup)
+
+To run the application manually, you must run both the backend and frontend in separate terminal processes.
+
+#### Step 1: Run the Backend API
+
+##### Method A: Using uv (Recommended)
 [uv](https://docs.astral.sh/uv/) is a fast Python package manager. It handles virtual environments and dependency resolution automatically.
 
 ```bash
-# Install uv
+# Install uv (if not installed)
 # Windows:
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 # macOS/Linux:
@@ -153,15 +178,11 @@ cp .env.example .env
 # Start the backend
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Start Streamlit UI (separate terminal)
-uv run streamlit run streamlit_app/app.py
-
 # Run tests
 uv run pytest tests/ -v
 ```
 
-### Option 2: Using pip
-
+##### Method B: Using pip
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -173,31 +194,35 @@ cp .env.example .env
 # Start the backend
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Start Streamlit UI (separate terminal)
-streamlit run streamlit_app/app.py
-
 # Run tests
 pytest tests/ -v
 ```
 
-### Option 3: Using Docker
-
-No Python installation required. Docker handles everything.
+#### Step 2: Run the Frontend (Next.js)
 
 ```bash
-# Configure environment
-cp .env.example .env
-# Edit .env and set your GEMINI_API_KEY
+# Navigate to the frontend directory
+cd frontend
 
-# Build and start both services
-docker compose up --build
+# Install Node dependencies
+npm install
+
+# Start the Next.js dev server
+npm run dev
 ```
+The frontend is served at [http://localhost:3000](http://localhost:3000) and automatically proxies API requests to [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-- Backend API: http://localhost:8000
-- Streamlit UI: http://localhost:8501
-- Swagger docs: http://localhost:8000/docs
+#### Step 3: Run the Legacy Streamlit UI (Optional)
+If you specifically want to run the older, deprecated Streamlit interface instead of the modern React web app:
 
-See the **Docker** section below for full details.
+```bash
+# Using uv:
+uv run streamlit run streamlit_app/app.py
+
+# Using pip:
+streamlit run streamlit_app/app.py
+```
+It will be available at [http://localhost:8501](http://localhost:8501).
 
 ---
 
@@ -393,88 +418,86 @@ Query audit log viewer with pagination. Returns logs in reverse chronological or
 
 ### Overview
 
-The project ships with two Dockerfiles and a docker-compose.yml that runs the full stack:
+The project ships with Dockerfiles for the backend, Next.js frontend, and legacy Streamlit interface, and a `docker-compose.yml` that orchestrates them:
 
 ```
-┌─────────────────────────────────────────────────┐
-│              docker compose up                    │
-│                                                   │
-│  ┌─────────────────┐    ┌─────────────────────┐  │
-│  │  backend         │    │  streamlit           │  │
-│  │  (Dockerfile)    │    │  (Dockerfile.streamlit)│ │
-│  │                  │    │                       │  │
-│  │  FastAPI + uv    │◄───│  Streamlit + uv      │  │
-│  │  Port 8000       │    │  Port 8501           │  │
-│  └─────────────────┘    └─────────────────────┘  │
-│         │                         │                │
-│         ▼                         ▼                │
-│   SQLite (mock.db)         Calls backend:8000      │
-│   inside container         via Docker network      │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      docker compose up                      │
+│                                                             │
+│  ┌─────────────────────┐          ┌──────────────────────┐  │
+│  │  backend             │          │  frontend            │  │
+│  │  (Dockerfile)        │          │  (Dockerfile.front)  │  │
+│  │                      │          │                      │  │
+│  │  FastAPI + uv        │◄─────────│  Next.js             │  │
+│  │  Port 8000           │ (Proxy)  │  Port 3000           │  │
+│  └──────────┬──────────┘          └──────────────────────┘  │
+│             │                                               │
+│             ▼                                               │
+│       SQLite (mock.db)                                      │
+│       inside container                                      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Files Explained
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Builds the **backend** image (FastAPI + all app code) |
-| `Dockerfile.streamlit` | Builds the **Streamlit UI** image |
-| `docker-compose.yml` | Orchestrates both services, wires networking, passes env vars |
-| `.dockerignore` | Excludes .env, .git, tests, __pycache__ from images |
+| `Dockerfile` | Builds the **backend** image (FastAPI + Python dependencies) |
+| `Dockerfile.frontend` | Builds the **Next.js frontend** image (Node/React application) |
+| `Dockerfile.streamlit` | Builds the legacy **Streamlit UI** image (deprecated) |
+| `docker-compose.yml` | Orchestrates backend, frontend, and legacy services, sets up the virtual network |
+| `.dockerignore` | Excludes `.env`, `.git`, `tests`, `node_modules`, and Python cache directories |
 
 ### How the Docker Build Works
 
-Both Dockerfiles follow the same pattern:
+- **Backend Build**:
+  1. **Base image**: `python:3.11-slim` (minimal environment)
+  2. **Install uv**: Copies binary from `ghcr.io/astral-sh/uv` to optimize dependency caching
+  3. **Dependency sync**: Copies `pyproject.toml` + `uv.lock` and runs `uv sync --frozen --no-dev`
+  4. **Code copy**: Adds the app package and runs under a non-root `appuser` for security
+- **Frontend Build**:
+  1. **Base image**: `node:20-alpine`
+  2. **Build stage**: Runs `npm install` and `npm run build` to build Next.js static and standalone bundle assets
+  3. **Runner stage**: Copies standalone `server.js` and statically built pages into a production-ready container running under a non-root user
 
-1. **Base image**: `python:3.11-slim` (small, production-ready)
-2. **Install uv**: Copied from the official `ghcr.io/astral-sh/uv` image
-3. **Copy dependency files**: `pyproject.toml` + `uv.lock` (cached layer)
-4. **Install deps**: `uv sync --frozen --no-dev` (fast, locked versions, no dev deps)
-5. **Copy app code**: Only the application files needed to run
-6. **Non-root user**: Runs as `appuser` for security
-7. **CMD**: Starts the service
-
-This means dependency installation is **cached** — rebuilds are fast unless you change `pyproject.toml`.
+This setup ensures that builds are fully cached and very fast unless dependencies (`pyproject.toml` or `package.json`) change.
 
 ### Commands
 
 ```bash
-# Build and start everything
+# Build and start all services (Backend + Next.js Frontend)
 docker compose up --build
 
-# Start in background (detached)
+# Start in background (detached mode)
 docker compose up --build -d
 
-# View logs
+# View logs for all running services
 docker compose logs -f
 
 # View logs for a specific service
 docker compose logs -f backend
-docker compose logs -f streamlit
+docker compose logs -f frontend
 
-# Stop everything
+# Stop and tear down containers
 docker compose down
 
-# Rebuild after code changes
-docker compose up --build
-
-# Remove everything (containers + volumes)
+# Remove containers, networks, and volumes
 docker compose down -v
 ```
 
 ### Environment Variables in Docker
 
-The `docker-compose.yml` reads your `.env` file automatically via `env_file: .env`. You only need to:
+The `docker-compose.yml` automatically imports variables defined in your `.env` file via `env_file: .env`. Ensure you:
 
 1. Copy `.env.example` to `.env`
 2. Set your `GEMINI_API_KEY`
 3. Run `docker compose up --build`
 
-The Streamlit container overrides `BACKEND_URL` to `http://backend:8000` — this uses Docker's internal DNS so the UI container can reach the backend container by service name.
+The frontend container sets the environment variable `NEXT_PUBLIC_API_URL=http://backend:8000`. Next.js uses this internal DNS address to resolve API requests securely through the shared Docker network.
 
 ### Health Checks
 
-The backend service has a health check configured:
+The backend service defines a health check:
 
 ```yaml
 healthcheck:
@@ -484,7 +507,7 @@ healthcheck:
   retries: 3
 ```
 
-The Streamlit service waits for the backend to be healthy before starting (`depends_on` with `condition: service_healthy`).
+The `frontend` container depends on this health check being successful before it boots up (`depends_on` with `condition: service_healthy`), ensuring no API requests fail on launch.
 
 ### Using Real PostgreSQL with Docker
 
@@ -496,7 +519,7 @@ environment:
   - DATABASE_URL=postgresql+asyncpg://user:pass@host.docker.internal:5432/college_db
 ```
 
-`host.docker.internal` lets the container reach your host machine's PostgreSQL. For a containerized Postgres, add it as a service:
+`host.docker.internal` allows the container to contact a PostgreSQL instance running on your host machine. Alternatively, you can add a local PostgreSQL service directly in `docker-compose.yml`:
 
 ```yaml
 services:
@@ -524,29 +547,32 @@ volumes:
 
 ### Building Individual Images
 
+You can build and run individual images outside of Docker Compose:
+
 ```bash
-# Build just the backend
+# Build backend
 docker build -t college-chatbot-backend .
 
-# Build just the streamlit UI
-docker build -t college-chatbot-ui -f Dockerfile.streamlit .
+# Build Next.js frontend
+docker build -t college-chatbot-frontend -f Dockerfile.frontend .
 
 # Run backend standalone
 docker run -p 8000:8000 --env-file .env college-chatbot-backend
 
-# Run UI standalone (needs backend running)
-docker run -p 8501:8501 -e BACKEND_URL=http://host.docker.internal:8000 college-chatbot-ui
+# Run frontend standalone (points proxy to host backend)
+docker run -p 3000:3000 -e NEXT_PUBLIC_API_URL=http://host.docker.internal:8000 college-chatbot-frontend
 ```
 
 ### Image Sizes
 
-The images are kept small by:
-- Using `python:3.11-slim` (not full Python image)
-- `.dockerignore` excludes tests, docs, .git, __pycache__
-- `--no-dev` flag skips test dependencies in production
-- No unnecessary system packages installed
+The images are optimized for production:
+- Using `python:3.11-slim` and `node:20-alpine` base images
+- `.dockerignore` blocks copying of large test caches, local environments, and `node_modules`
+- Next.js build uses the `standalone` output target to package only the files needed for production
 
-Expected sizes: ~300-400MB per image (mostly Python + ML libraries).
+Expected sizes:
+- Backend image: ~350MB
+- Frontend image: ~150MB
 
 ---
 
