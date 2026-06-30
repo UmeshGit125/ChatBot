@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     QUERY_TIMEOUT_SECONDS: int = 10
 
     # Backend URL (for Streamlit)
-    BACKEND_URL: str = "http://localhost:8000"
+    BACKEND_URL: str = "http://localhost:8001"
 
     @property
     def is_sqlite(self) -> bool:

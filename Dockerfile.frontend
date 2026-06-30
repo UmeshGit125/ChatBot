@@ -14,7 +14,7 @@ RUN npm ci
 COPY frontend/ .
 
 # Set the backend URL for production build
-ENV NEXT_PUBLIC_API_URL=http://backend:8000
+ENV NEXT_PUBLIC_API_URL=http://backend:8001
 
 RUN npm run build
 

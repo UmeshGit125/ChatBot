@@ -147,8 +147,8 @@ docker compose up --build
 ```
 
 - **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:8000](http://localhost:8000)
-- **Swagger docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backend API**: [http://localhost:8001](http://localhost:8001)
+- **Swagger docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
 
 See the **Docker** section below for full details.
 
@@ -176,7 +176,7 @@ cp .env.example .env
 # Edit .env and set your GEMINI_API_KEY
 
 # Start the backend
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # Run tests
 uv run pytest tests/ -v
@@ -192,7 +192,7 @@ cp .env.example .env
 # Edit .env and set your GEMINI_API_KEY
 
 # Start the backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # Run tests
 pytest tests/ -v
@@ -210,7 +210,7 @@ npm install
 # Start the Next.js dev server
 npm run dev
 ```
-The frontend is served at [http://localhost:3000](http://localhost:3000) and automatically proxies API requests to [http://127.0.0.1:8000](http://127.0.0.1:8000).
+The frontend is served at [http://localhost:3000](http://localhost:3000) and automatically proxies API requests to [http://127.0.0.1:8001](http://127.0.0.1:8001).
 
 #### Step 3: Run the Legacy Streamlit UI (Optional)
 If you specifically want to run the older, deprecated Streamlit interface instead of the modern React web app:
@@ -429,7 +429,7 @@ The project ships with Dockerfiles for the backend, Next.js frontend, and legacy
 │  │  (Dockerfile)        │          │  (Dockerfile.front)  │  │
 │  │                      │          │                      │  │
 │  │  FastAPI + uv        │◄─────────│  Next.js             │  │
-│  │  Port 8000           │ (Proxy)  │  Port 3000           │  │
+│  │  Port 8001           │ (Proxy)  │  Port 3000           │  │
 │  └──────────┬──────────┘          └──────────────────────┘  │
 │             │                                               │
 │             ▼                                               │
@@ -493,7 +493,7 @@ The `docker-compose.yml` automatically imports variables defined in your `.env` 
 2. Set your `GEMINI_API_KEY`
 3. Run `docker compose up --build`
 
-The frontend container sets the environment variable `NEXT_PUBLIC_API_URL=http://backend:8000`. Next.js uses this internal DNS address to resolve API requests securely through the shared Docker network.
+The frontend container sets the environment variable `NEXT_PUBLIC_API_URL=http://backend:8001`. Next.js uses this internal DNS address to resolve API requests securely through the shared Docker network.
 
 ### Health Checks
 
@@ -501,7 +501,7 @@ The backend service defines a health check:
 
 ```yaml
 healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
   interval: 10s
   timeout: 5s
   retries: 3
@@ -557,10 +557,10 @@ docker build -t college-chatbot-backend .
 docker build -t college-chatbot-frontend -f Dockerfile.frontend .
 
 # Run backend standalone
-docker run -p 8000:8000 --env-file .env college-chatbot-backend
+docker run -p 8001:8001 --env-file .env college-chatbot-backend
 
 # Run frontend standalone (points proxy to host backend)
-docker run -p 3000:3000 -e NEXT_PUBLIC_API_URL=http://host.docker.internal:8000 college-chatbot-frontend
+docker run -p 3000:3000 -e NEXT_PUBLIC_API_URL=http://host.docker.internal:8001 college-chatbot-frontend
 ```
 
 ### Image Sizes

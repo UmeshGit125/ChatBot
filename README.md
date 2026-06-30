@@ -104,8 +104,8 @@ No Python or Node.js installation is required on your machine. Docker handles th
 
 Once started:
 - **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:8000](http://localhost:8000)
-- **API Interactive Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backend API**: [http://localhost:8001](http://localhost:8001)
+- **API Interactive Docs (Swagger)**: [http://localhost:8001/docs](http://localhost:8001/docs)
 
 To stop the containers:
 ```bash
@@ -147,7 +147,7 @@ cp .env.example .env
 # Edit .env and set your GEMINI_API_KEY
 
 # Start backend server
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8001
 ```
 
 ##### Method B: Using pip
@@ -168,10 +168,10 @@ cp .env.example .env
 # Edit .env and set your GEMINI_API_KEY
 
 # Start backend server
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-The Backend API is now running at [http://localhost:8000](http://localhost:8000).
+The Backend API is now running at [http://localhost:8001](http://localhost:8001).
 
 #### Step 2: Run the Frontend (Next.js)
 
@@ -188,7 +188,7 @@ npm install
 npm run dev
 ```
 
-The frontend web app is now running at [http://localhost:3000](http://localhost:3000). It is pre-configured to proxy API calls to the backend on port 8000.
+The frontend web app is now running at [http://localhost:3000](http://localhost:3000). It is pre-configured to proxy API calls to the backend on port 8001.
 
 #### Step 3: Run the Legacy Streamlit UI (Optional)
 

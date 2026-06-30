@@ -7,7 +7,7 @@ import requests
 import streamlit as st
 
 # Configuration
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001")
 
 # Page config
 st.set_page_config(
