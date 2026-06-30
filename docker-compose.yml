@@ -16,6 +16,20 @@ services:
       retries: 3
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Legacy Streamlit UI (deprecated, use frontend instead)
   streamlit:
     build:
       context: .
@@ -28,3 +42,5 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    profiles:
+      - legacy

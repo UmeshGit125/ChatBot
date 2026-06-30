@@ -75,92 +75,143 @@ User Question (EN/HI/Hinglish)
 
 ### Prerequisites
 
-- Python 3.11+
-- A [Google Gemini API key](https://aistudio.google.com/apikey)
+- **Python 3.11+**
+- **Node.js 18+ and npm** (required to run the Next.js frontend locally)
+- A **[Google Gemini API key](https://aistudio.google.com/apikey)**
 
-### Option 1: Using uv (Recommended)
+---
 
-[uv](https://docs.astral.sh/uv/) is a fast Python package manager that handles dependencies and virtual environments automatically.
+### Option 1: Running with Docker (Recommended & Easiest)
+
+No Python or Node.js installation is required on your machine. Docker handles the entire stack: the FastAPI backend, the Next.js frontend, and the database automatically.
+
+1. Clone and navigate to the project directory:
+   ```bash
+   git clone https://github.com/UmeshGit125/ChatBot.git
+   cd ChatBot
+   ```
+
+2. Configure the environment variables:
+   ```bash
+   cp .env.example .env
+   # Open .env and add your GEMINI_API_KEY
+   ```
+
+3. Start all services:
+   ```bash
+   docker compose up --build
+   ```
+
+Once started:
+- **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **API Interactive Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+To stop the containers:
+```bash
+docker compose down
+```
+
+> [!NOTE]
+> If you wish to run the legacy/deprecated Streamlit interface, you can start it with the legacy profile:
+> ```bash
+> docker compose --profile legacy up --build
+> ```
+> The Streamlit interface will be available at [http://localhost:8501](http://localhost:8501).
+
+---
+
+### Option 2: Running Locally (Without Docker)
+
+To run without Docker, you will need to start both the Backend API and the Next.js Frontend in separate terminal windows.
+
+#### Step 1: Run the Backend API
+
+You can install dependencies and run the backend using either **uv** (recommended) or **pip**.
+
+##### Method A: Using uv (Fastest)
+[uv](https://docs.astral.sh/uv/) is an extremely fast Python package manager.
 
 ```bash
-# Install uv (if not installed)
+# Install uv (if you don't have it)
 # Windows:
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 # macOS/Linux:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Clone and setup
-git clone https://github.com/UmeshGit125/ChatBot.git
-cd ChatBot
-
-# Install all dependencies (creates .venv automatically)
+# Setup dependencies (automatically creates virtual environment)
 uv sync
 
 # Configure environment
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
+# Edit .env and set your GEMINI_API_KEY
 
-# Run the backend
+# Start backend server
 uv run uvicorn app.main:app --reload --port 8000
-
-# Run Streamlit UI (in another terminal)
-uv run streamlit run streamlit_app/app.py
-
-# Run tests
-uv run pytest tests/ -v
 ```
 
-### Option 2: Using pip
-
+##### Method B: Using pip
 ```bash
-git clone https://github.com/UmeshGit125/ChatBot.git
-cd ChatBot
+# Setup virtual environment (optional but recommended)
+python -m venv .venv
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
+# Edit .env and set your GEMINI_API_KEY
 
-# Run the backend
+# Start backend server
 uvicorn app.main:app --reload --port 8000
+```
 
-# Run Streamlit UI (in another terminal)
+The Backend API is now running at [http://localhost:8000](http://localhost:8000).
+
+#### Step 2: Run the Frontend (Next.js)
+
+Navigate to the `frontend` folder to install dependencies and run the dev server:
+
+```bash
+# Open a new terminal window and go to the frontend directory
+cd frontend
+
+# Install Node dependencies
+npm install
+
+# Start the Next.js development server
+npm run dev
+```
+
+The frontend web app is now running at [http://localhost:3000](http://localhost:3000). It is pre-configured to proxy API calls to the backend on port 8000.
+
+#### Step 3: Run the Legacy Streamlit UI (Optional)
+
+If you specifically want to run the older, deprecated Streamlit interface instead of the modern React web app:
+
+```bash
+# Using uv:
+uv run streamlit run streamlit_app/app.py
+
+# Or using pip (with active virtual environment):
 streamlit run streamlit_app/app.py
+```
+It will be available at [http://localhost:8501](http://localhost:8501).
 
-# Run tests
+#### Running Tests
+
+Verify the backend works correctly:
+```bash
+# Using uv:
+uv run pytest tests/ -v
+
+# Or using pip:
 pytest tests/ -v
-```
-
-### Option 3: Using Docker
-
-No Python installation needed — just Docker.
-
-```bash
-git clone https://github.com/UmeshGit125/ChatBot.git
-cd ChatBot
-
-# Configure environment
-cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
-
-# Start both backend + UI
-docker compose up --build
-```
-
-- Backend API: http://localhost:8000
-- Streamlit UI: http://localhost:8501
-- Swagger docs: http://localhost:8000/docs
-
-To stop:
-```bash
-docker compose down
-```
-
-To rebuild after code changes:
-```bash
-docker compose up --build
 ```
 
 ---

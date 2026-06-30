@@ -10,6 +10,13 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(None, description="Conversation ID for follow-up/clarification context")
 
 
+class ChartConfig(BaseModel):
+    """Chart configuration metadata."""
+    x_key: str = Field(..., description="Column to use as x-axis")
+    y_keys: list[str] = Field(..., description="Columns to use as y-axis values")
+    title: Optional[str] = Field(None, description="Chart title")
+
+
 class ChatResponse(BaseModel):
     """Chat endpoint response body."""
     answer: str = Field(..., description="Formatted response to the user")
@@ -18,6 +25,9 @@ class ChatResponse(BaseModel):
     conversation_id: str = Field(..., description="Conversation ID for follow-up")
     domain: Optional[str] = Field(None, description="Detected domain of the question")
     row_count: Optional[int] = Field(None, description="Number of result rows")
+    raw_data: Optional[list[dict]] = Field(None, description="Raw chartable data (when applicable)")
+    suggested_chart_type: Optional[str] = Field(None, description="Suggested chart type: bar, line, pie, area")
+    chart_config: Optional[ChartConfig] = Field(None, description="Chart axis and title configuration")
 
 
 class PipelineResult(BaseModel):

@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.core.chart_analyzer import analyze_chart_data
 from app.core.conversation import conversation_manager
 from app.core.logger import query_logger, QueryLogEntry
-from app.core.models import ChatRequest, ChatResponse, PipelineResult
+from app.core.models import ChatRequest, ChatResponse, ChartConfig, PipelineResult
 from app.core.pipeline import run_pipeline
 from app.core.rate_limiter import rate_limiter
 from app.formatter.response_formatter import format_response
@@ -129,6 +130,19 @@ async def chat(request: ChatRequest):
         answer=formatted_answer[:300],  # Store truncated answer
     )
 
+    # Analyze chart data
+    chart_data = None
+    raw_data_response = None
+    suggested_chart = None
+    chart_config_response = None
+
+    if result.raw_results:
+        chart_data = analyze_chart_data(result.raw_results)
+        if chart_data:
+            raw_data_response = chart_data["raw_data"]
+            suggested_chart = chart_data["suggested_chart_type"]
+            chart_config_response = ChartConfig(**chart_data["chart_config"])
+
     return ChatResponse(
         answer=formatted_answer,
         sql=result.sql,
@@ -136,4 +150,7 @@ async def chat(request: ChatRequest):
         conversation_id=conv.id,
         domain=result.domain,
         row_count=result.row_count,
+        raw_data=raw_data_response,
+        suggested_chart_type=suggested_chart,
+        chart_config=chart_config_response,
     )
