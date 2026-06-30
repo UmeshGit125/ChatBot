@@ -1,6 +1,15 @@
 import { ChatApiResponse, Conversation, Message } from '@/types';
 
-const API_BASE = '/api';
+const getApiBase = () => {
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:8001/api';
+    }
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 export async function sendChatMessage(
   question: string,
