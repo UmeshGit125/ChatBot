@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // Speed up compilation
+  swcMinify: true,
+  // Reduce unnecessary type checking during dev
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  // Optimize package imports for large libraries
+  experimental: {
+    optimizePackageImports: ['recharts', 'lucide-react'],
+  },
   async rewrites() {
     return [
       {

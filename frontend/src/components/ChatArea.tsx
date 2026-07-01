@@ -13,8 +13,9 @@ interface ChatAreaProps {
   conversation: Conversation | null;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
-  onSendMessage: (message: Message) => void;
+  onSendMessage: (message: Message) => string;
   onUpdateAssistantMessage: (message: Message) => void;
+  onUpdateBackendConversationId: (conversationId: string, backendId: string) => void;
 }
 
 export function ChatArea({
@@ -23,6 +24,7 @@ export function ChatArea({
   onToggleSidebar,
   onSendMessage,
   onUpdateAssistantMessage,
+  onUpdateBackendConversationId,
 }: ChatAreaProps) {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,8 @@ export function ChatArea({
       content: content.trim(),
       timestamp: new Date().toISOString(),
     };
-    onSendMessage(userMessage);
+    // addMessage returns the conversation ID (creates one if none active)
+    const conversationId = onSendMessage(userMessage);
 
     setIsLoading(true);
 
@@ -70,8 +73,8 @@ export function ChatArea({
       onUpdateAssistantMessage(assistantMessage);
 
       // Store backend conversation ID if this is first message
-      if (response.conversation_id && conversation) {
-        conversation.backendConversationId = response.conversation_id;
+      if (response.conversation_id && conversationId) {
+        onUpdateBackendConversationId(conversationId, response.conversation_id);
       }
     } catch (error) {
       const errorMessage: Message = {

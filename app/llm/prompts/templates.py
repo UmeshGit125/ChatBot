@@ -32,7 +32,7 @@ RULES:
 7. IMPORTANT: All table names with uppercase letters MUST be double-quoted: "Student", "Center", "Batch", "Attendance", etc. Lowercase tables like problem, submission, contest do NOT need quotes.
 8. For date filtering, use timestamps: column >= '2024-01-01' or column::date = '2024-01-15'
 9. For attendance: status is an enum with values like 'PRESENT', 'ABSENT' (uppercase).
-10. Limit results to 50 rows unless the query is an aggregate (COUNT, SUM, AVG, etc.)
+10. Only add LIMIT if the user explicitly asks for a limited number (e.g., "top 5", "first 10"). Do NOT add any LIMIT when the user asks for "all", "every", "list of all", "complete list", or does not specify a count. Never add LIMIT 50 by default.
 11. Always include student names in results when the query is about specific students.
 12. Use ILIKE instead of = for name matching (case-insensitive): WHERE name ILIKE '%search%'
 13. For partial/fuzzy matching on names, centers, batches - always use ILIKE with % wildcards.
@@ -141,7 +141,7 @@ RULES:
    - Compare and filter by threshold
 7. Use CTEs (WITH clause) for complex multi-period queries.
 8. Dates are stored as TEXT in 'YYYY-MM-DD' format.
-9. Limit to 50 rows.
+9. Only add LIMIT if the user explicitly asks for a limited number (e.g., "top 5"). Do NOT add LIMIT when the user asks for "all" or does not specify a count.
 10. Always include student names and both period values in the output.
 11. For "raised by X%", the threshold is on (week2_pct - week1_pct) >= X.
 12. For "dropped by X%", the threshold is on (week1_pct - week2_pct) >= X.

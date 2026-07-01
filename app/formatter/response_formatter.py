@@ -10,7 +10,7 @@ from app.llm.base import BaseLLMProvider
 from app.llm.factory import get_provider
 
 
-MAX_TABLE_ROWS = 50
+MAX_TABLE_ROWS = 500
 
 
 def _snake_to_title(name: str) -> str:

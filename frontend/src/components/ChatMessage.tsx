@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Database, Download, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Message } from '@/types';
 import { ChartRenderer } from './ChartRenderer';
 import { ExportMenu } from './ExportMenu';
@@ -45,7 +46,40 @@ export function ChatMessage({ message }: ChatMessageProps) {
           {isUser ? (
             <p className="m-0 whitespace-pre-wrap">{message.content}</p>
           ) : (
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    {children}
+                  </thead>
+                ),
+                th: ({ children }) => (
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    {children}
+                  </td>
+                ),
+                tr: ({ children }) => (
+                  <tr className="border-b border-gray-100 dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800/50">
+                    {children}
+                  </tr>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
           )}
         </div>
 

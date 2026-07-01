@@ -30,6 +30,9 @@ export function useConversations() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Use a ref to always have the latest activeConversationId available in callbacks
+  const activeConversationIdRef = useRef<string | null>(null);
+  activeConversationIdRef.current = activeConversationId;
 
   // Load from localStorage on mount, then attempt backend sync
   useEffect(() => {
@@ -113,18 +116,20 @@ export function useConversations() {
   const deleteConversation = useCallback((id: string) => {
     setConversations((prev) => {
       const filtered = prev.filter((c) => c.id !== id);
-      if (id === activeConversationId) {
+      if (id === activeConversationIdRef.current) {
         setActiveConversationId(filtered.length > 0 ? filtered[0].id : null);
       }
       return filtered;
     });
     // Also delete from backend (fire and forget)
     deleteConversationApi(id);
-  }, [activeConversationId]);
+  }, []);
 
-  const addMessage = useCallback((message: Message) => {
+  const addMessage = useCallback((message: Message): string => {
+    let createdConvId: string | null = null;
+
     setConversations((prev) => {
-      let targetId = activeConversationId;
+      let targetId = activeConversationIdRef.current;
       let updatedConvs = [...prev];
 
       if (!targetId) {
@@ -136,8 +141,8 @@ export function useConversations() {
           updatedAt: new Date().toISOString(),
         };
         targetId = newConv.id;
+        createdConvId = newConv.id;
         updatedConvs = [newConv, ...updatedConvs];
-        setActiveConversationId(targetId);
       }
 
       const result = updatedConvs.map((conv) => {
@@ -154,12 +159,24 @@ export function useConversations() {
 
       return result;
     });
-  }, [activeConversationId]);
+
+    // Update active conversation ID outside the setConversations updater
+    // so React processes it properly and the ref updates on next render
+    if (createdConvId) {
+      setActiveConversationId(createdConvId);
+      // Immediately update the ref so that subsequent calls in the same
+      // async flow (before re-render) see the correct ID
+      activeConversationIdRef.current = createdConvId;
+    }
+
+    return createdConvId || activeConversationIdRef.current || '';
+  }, []);
 
   const updateLastAssistantMessage = useCallback((message: Message) => {
     setConversations((prev) => {
+      const currentActiveId = activeConversationIdRef.current;
       const updated = prev.map((conv) => {
-        if (conv.id !== activeConversationId) return conv;
+        if (conv.id !== currentActiveId) return conv;
         const updatedConv = {
           ...conv,
           messages: [...conv.messages, message],
@@ -171,7 +188,17 @@ export function useConversations() {
       });
       return updated;
     });
-  }, [activeConversationId, syncToBackend]);
+  }, [syncToBackend]);
+
+  const updateBackendConversationId = useCallback((conversationId: string, backendId: string) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? { ...conv, backendConversationId: backendId }
+          : conv
+      )
+    );
+  }, []);
 
   return {
     conversations,
@@ -183,5 +210,6 @@ export function useConversations() {
     deleteConversation,
     addMessage,
     updateLastAssistantMessage,
+    updateBackendConversationId,
   };
 }

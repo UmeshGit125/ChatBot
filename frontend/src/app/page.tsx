@@ -17,6 +17,7 @@ export default function Home() {
     deleteConversation,
     addMessage,
     updateLastAssistantMessage,
+    updateBackendConversationId,
   } = useConversations();
 
   // Responsive: detect mobile
@@ -86,6 +87,7 @@ export default function Home() {
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onSendMessage={addMessage}
         onUpdateAssistantMessage={updateLastAssistantMessage}
+        onUpdateBackendConversationId={updateBackendConversationId}
       />
     </div>
   );
